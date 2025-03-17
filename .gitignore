@@ -1,6 +1,11 @@
 .vscode
 TODO
 *.excalidraw
+Lab1/bestmain.py
+Lab1/pudge.py
+DoneWordFiles
+.gitignore
+./main.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

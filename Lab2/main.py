@@ -13,7 +13,7 @@ offset = 50  # Відступи від країв екрану
 
 # Створюємо головне вікно
 root = tk.Tk()
-root.title("Прямолінійний рух")
+root.title("Рух тіла кинутого під кутом до горизонту")
 
 input_frame = tk.Frame(root, padx=20, pady=20)
 input_frame.pack(side="left", fill="y")
@@ -37,11 +37,9 @@ tk.Label(input_frame, text="Початкова швидкість (м/с):").gri
 entry_v0 = tk.Entry(input_frame)
 entry_v0.grid(row=3, column=1, padx=10, pady=10)
 
-tk.Label(input_frame, text="Прискорення (м/с²):").grid(
-    row=4, column=0, padx=10, pady=10
-)
-entry_a = tk.Entry(input_frame)
-entry_a.grid(row=4, column=1, padx=10, pady=10)
+tk.Label(input_frame, text="Сила тяжіння:").grid(row=4, column=0, padx=10, pady=10)
+entry_g = tk.Entry(input_frame)
+entry_g.grid(row=4, column=1, padx=10, pady=10)
 
 # Полотно для відображення руху
 canvas = tk.Canvas(root, width=700, height=400, bg="white")
@@ -65,11 +63,9 @@ def start_simulation():
     y0 = float(entry_y0.get())
     v0 = float(entry_v0.get())
     alpha = float(entry_angle.get())
-    a = float(entry_a.get())
+    g = float(entry_g.get())
 
     theta = math.radians(alpha)
-    dirX = np.cos(theta)
-    dirY = np.sin(theta)
 
     root.update_idletasks()
     canvas_width = canvas.winfo_width()
@@ -85,6 +81,14 @@ def start_simulation():
         canvas_x, canvas_y, canvas_x + BALL_SIZE, canvas_y + BALL_SIZE, fill="red"
     )
 
+    t_pol = 2 * v0 * math.sin(theta) / g
+    t_pid = t_pol / 2
+
+    L = v0**2 * math.sin(2 * theta) / g
+    H = (v0**2) * (math.sin(theta) ** 2) / (2 * g)
+
+    print_exact_result(t_pol, t_pid, L, H)
+
     t = 0
 
     trail = []
@@ -94,10 +98,11 @@ def start_simulation():
 
         t += dt
 
-        S = v0 * t + 0.5 * a * t**2
+        v0x = v0 * math.cos(theta)
+        v0y = v0 * math.sin(theta)
 
-        x = x0 + dirX * S
-        y = y0 + dirY * S
+        x = x0 + v0x * t
+        y = y0 + v0y * t - 0.5 * g * t**2
 
         canvas_x = x * SCALE + offset
         canvas_y = canvas_height - (y * SCALE + offset)
@@ -123,14 +128,37 @@ def start_simulation():
                 tags="trail",
             )
 
-        if (
-            t <= t_max
-            and 0 <= canvas_x <= canvas_width - BALL_SIZE
-            and 0 <= canvas_y <= canvas_height - BALL_SIZE
-        ):
+        if y > 0 and t <= t_max:
             root.after(int(dt * 1000), update_motion)
 
     update_motion()
+
+
+result_labels = {}
+
+
+def print_exact_result(t_pol, t_pid, L, H):
+    global result_labels
+
+    results = {
+        "Час польоту": t_pol,
+        "Час підйому": t_pid,
+        "Дальність польоту": L,
+        "Висота підйому": H,
+    }
+
+    row = 9
+
+    for key, value in results.items():
+        if key in result_labels:
+            # Якщо Label вже існує, оновлюємо його текст
+            result_labels[key].config(text=f"{key}: {value:.2f}")
+        else:
+            # Якщо Label ще немає, створюємо його
+            label = tk.Label(input_frame, text=f"{key}: {value:.2f}")
+            label.grid(row=row, column=0, columnspan=2, padx=10, pady=5)
+            result_labels[key] = label
+        row += 1
 
 
 graphs = []
@@ -146,7 +174,7 @@ def render_trajectory():
 
     plt.xlabel("X (м)")
     plt.ylabel("Y (м)")
-    plt.title("Графік прямолінійного руху")
+    plt.title("Графік руху тіла кинутого під кутом до горизонту")
     plt.legend()
     plt.grid()
     plt.show()
@@ -156,29 +184,31 @@ def plot_trajectory():
     global last_params
     x0 = float(entry_x0.get())
     y0 = float(entry_y0.get())
-    v = float(entry_v0.get())
+    v0 = float(entry_v0.get())
     alpha = float(entry_angle.get())
-    a = float(entry_a.get())
+    g = float(entry_g.get())
 
-    if last_params == [x0, y0, v, alpha, a]:
+    if last_params == [x0, y0, v0, alpha, g]:
         render_trajectory()
         return
 
-    last_params = [x0, y0, v, alpha, a]
+    last_params = [x0, y0, v0, alpha, g]
 
     theta = math.radians(alpha)
 
     t = np.arange(0, t_max, dt)
 
-    dirX = np.cos(theta)
-    dirY = np.sin(theta)
+    v0x = v0 * math.cos(theta)
+    v0y = v0 * math.sin(theta)
 
-    S = v * t + 0.5 * a * t**2
+    x = x0 + v0x * t
+    y = y0 + v0y * t - 0.5 * g * t**2
 
-    x = x0 + dirX * S
-    y = y0 + dirY * S
+    # Видаляємо точки, де y < 0
+    valid_indices = y >= 0
+    x = x[valid_indices]
+    y = y[valid_indices]
 
-    # Додаємо новий графік до списку
     graphs.append((x, y))
 
     render_trajectory()
